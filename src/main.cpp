@@ -62,8 +62,7 @@ int ClosestWaypoint(double x, double y, const vector<double> &maps_x, const vect
 
 }
 
-int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
-{
+int NextWaypoint(double x, double y, double theta, vector<double> maps_x, vector<double> maps_y, vector<double> maps_dx, vector<double> maps_dy) {
 
 	int closestWaypoint = ClosestWaypoint(x,y,maps_x,maps_y);
 
@@ -84,9 +83,11 @@ int NextWaypoint(double x, double y, double theta, const vector<double> &maps_x,
 }
 
 // Transform from Cartesian x,y coordinates to Frenet s,d coordinates
-vector<double> getFrenet(double x, double y, double theta, const vector<double> &maps_x, const vector<double> &maps_y)
+vector<double> getFrenet(double x, double y, 
+	double theta, const vector<double> &maps_x, 
+	const vector<double> &maps_y, vector<double> maps_dx, vector<double> maps_dy)
 {
-	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y);
+	int next_wp = NextWaypoint(x,y, theta, maps_x,maps_y, maps_dx, maps_dy);
 
 	int prev_wp;
 	prev_wp = next_wp-1;
@@ -199,19 +200,17 @@ int main() {
 
   //start in lane 1
   int lane = 1;
+  int waypoint_change_lane = 0;
 
-  // Have a reference velocity to target
-  double ref_vel = 0.0; // mph
-
-  h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
-				&map_waypoints_dx,&map_waypoints_dy, &lane]
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+				&map_waypoints_dx,&map_waypoints_dy, &lane, &waypoint_change_lane]
 				(uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
-    auto sdata = string(data).substr(0, length);
-	cout << sdata << endl;
+    //auto sdata = string(data).substr(0, length);
+	//cout << sdata << endl;
 
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
@@ -224,7 +223,8 @@ int main() {
         
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          
+			double ref_vel = 49.5; //mph
+
         	// Main car's localization Data
           	double car_x = j[1]["x"];
           	double car_y = j[1]["y"];
@@ -245,13 +245,34 @@ int main() {
 			vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 			
 			int prev_size = previous_path_x.size();
-			if(prev_size > 0) {
+
+			int next_waypoint = -1;
+
+			// reference state for x,y and yaw
+			double ref_x = car_x;
+			double ref_y = car_y;
+			double ref_yaw = deg2rad(car_yaw);
+
+			if(prev_size > 2) {
+				next_waypoint = NextWaypoint(ref_x, ref_y, ref_yaw, map_waypoints_x,
+								map_waypoints_y, map_waypoints_dx, map_waypoints_dy);
+			} else {
+				ref_x = previous_path_x[prev_size - 1];
+				double ref_x_prev = previous_path_x[prev_size - 2];
+				ref_y = previous_path_y[prev_size - 1];
+				double ref_y_prev = previous_path_y[prev_size - 2];
+				ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
+				next_waypoint = NextWaypoint(ref_x, ref_y, ref_yaw, map_waypoints_x,
+					map_waypoints_y, map_waypoints_dx, map_waypoints_dy);				
 				car_s = end_path_s;
+				car_speed = (sqrt((ref_x - ref_x_prev) * (ref_x - ref_x_prev) + (ref_y - ref_y_prev) * (ref_y - ref_y_prev)) / 0.02) * 2.24;	
 			}
 
-			bool too_close = false;
-
+		
 			// find ref_vel to use
+			double minDist_s = 50000;
+			bool change_lane = false;
+
 			for(int i = 0; i < sensor_fusion.size(); i++) {
 				float d = sensor_fusion[i][6];
 				if(d < (2+4*lane+2) && d > (2+4*lane-2)) {
@@ -262,25 +283,85 @@ int main() {
 
 					// use for project points from previous points
 					check_car_s += ((double)prev_size * 0.02 * check_speed);
-					if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
-						// lowering reference velocity and avoid front collisions
-						//ref_vel = 29.5; // in mph
-						too_close = true;
-						if(lane > 0) {
-							lane = 0;
+					double difference_in_car_speed = check_car_s - car_s;
+					if ((check_car_s > car_s) && (difference_in_car_speed < 30)
+						&& difference_in_car_speed < minDist_s) {
+							
+						minDist_s = difference_in_car_speed;
+						if(difference_in_car_speed > 20) {
+							ref_vel = check_speed * 2.24;
+							change_lane = true;
+						} else {
+							ref_vel = check_speed * 2.24 - 5;
+							change_lane = true;
 						}
 					}
 				}
 			}
 
+
+			if (change_lane) {
+				bool did_change_lane = false;
+
+				// Check the left lane for a potential lane change
+				if (lane != 0 && !did_change_lane) {
+				  bool lane_change_ok = true;
+				  for (int i = 0; i < sensor_fusion.size(); i++) {
+
+					float d = sensor_fusion[i][6];
+					if (d < (2 + 4 * (lane - 1) + 2) && d > (2 + 4 * (lane - 1) - 2)) {
+
+					  double vx = sensor_fusion[i][3];
+					  double vy = sensor_fusion[i][4];
+					  double check_speed = sqrt(vx * vx + vy * vy);
+
+					  double check_car_s = sensor_fusion[i][5];
+					  check_car_s += ((double)prev_size * 0.02 * check_speed);
+					  double dist_s = check_car_s - car_s;
+
+					  if (dist_s < 20 && dist_s > -20) {
+						lane_change_ok = false;
+					  }
+
+					}
+				  }
+
+				  if (lane_change_ok) {
+					did_change_lane = true;
+					lane -= 1;
+				  }
+
+				}
+
+				// Check the right lane for a potential lane change
+				if (lane != 2 && !did_change_lane) {
+				  bool lane_change_ok = true;
+				  for (int i = 0; i < sensor_fusion.size(); i++) {
+					float d = sensor_fusion[i][6];
+					if (d < (2 + 4 * (lane + 1) + 2) && d > (2 + 4 * (lane + 1) - 2)) {
+
+					  double vx = sensor_fusion[i][3];
+					  double vy = sensor_fusion[i][4];
+					  double check_speed = sqrt(vx * vx + vy * vy);
+
+					  double check_car_s = sensor_fusion[i][5];
+					  check_car_s += ((double)prev_size * 0.02 * check_speed);
+					  double dist_s = check_car_s - car_s;
+					  if (dist_s < 20 && dist_s > -10) {
+						lane_change_ok = false;
+					  }
+					}
+				  }
+				  if (lane_change_ok) {
+					did_change_lane = true;
+					lane += 1;
+				  }
+				}
+			  }
+
 			// for waypoints (x, y) evenly spaced at 30m
 			vector<double> ptsx;
 			vector<double> ptsy;
-
-			// reference states for x,y and yaw
-			double ref_x = car_x;
-			double ref_y = car_y;
-			double ref_yaw = deg2rad(car_yaw);
 
 			if( prev_size < 2 ) {
 				// use two points that make the path tangent to the dummy car
@@ -357,10 +438,10 @@ int main() {
 			double x_add_on = 0;
 			for(int i = 0; i <= 50 - previous_path_x.size(); i++) {
 				// handle the accleration limits
-				if(too_close){
-					ref_vel -=0.25;
-				} else if(ref_vel < 49.5) {
-					ref_vel += 0.25;
+				if(ref_vel > car_speed){
+					ref_vel +=0.25;
+				} else if(ref_vel < car_speed) {
+					ref_vel -= 0.25;
 				}
 
 				// find points on spline
