@@ -11,4 +11,4 @@ f) The car stays in its lane, except for the time between changing lanes.
 
 
 ## Results
-![Vechile driving without incident](../images/path_planner_result.png)
+![Vechile driving without incident](./images/path_planner_result.png)
