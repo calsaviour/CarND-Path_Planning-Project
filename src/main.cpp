@@ -301,10 +301,13 @@ int main() {
 			*/
 			
 			double dist_inc = 0.3;
+			double lane_width = 4.0;
+			double num_lanes = 3.0;
+			
 			for(int i = 0; i < 50; i++)
 			{
-				double next_s = car_s+(i+1) * dist_inc;
-				double next_d = 6;
+				double next_s = car_s + (i + 1) * dist_inc;
+				double next_d = lane_width * (num_lanes / 2);
 				vector<double> xy = getXY(next_s, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
 				next_x_vals.push_back(xy[0]);
 				next_y_vals.push_back(xy[1]);
