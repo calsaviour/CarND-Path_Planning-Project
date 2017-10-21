@@ -321,8 +321,9 @@ int main() {
 				}
 
 				if (lane_change_ok) {
-				did_change_lane = true;
-				lane -= 1;
+					did_change_lane = true;
+					lane -= 1;
+					waypoint_change_lane = next_waypoint;
 				}
 			}
 
@@ -346,8 +347,9 @@ int main() {
 					}
 				}
 					if (lane_change_ok) {
-					did_change_lane = true;
-					lane += 1;
+						did_change_lane = true;
+						lane += 1;
+						waypoint_change_lane = next_waypoint;
 					}
 				}
 			}
@@ -392,7 +394,7 @@ int main() {
             ptsy.push_back(next_wp2[1]);
 
             for (int i = 0; i < ptsx.size(); i++ ) {
-              // Shift car reference angle to 0 degrees
+              // shift car reference angle to 0 degrees
               double shift_x = ptsx[i] - ref_x;
               double shift_y = ptsy[i] - ref_y;
 
@@ -401,10 +403,10 @@ int main() {
 
             }
 
-            // Create a spline from Spline.h
+            // create a spline from Spline.h
             tk::spline s;
 
-            // Set points (x, y) to the spline
+            // set points (x, y) to the spline
             s.set_points(ptsx, ptsy);
 
             // Define the actual (x, y) points for the planner
@@ -427,12 +429,12 @@ int main() {
             // Always output 50 points
             for (int i = 0; i <= 50 - previous_path_x.size(); i++) {
               if (ref_vel > car_speed) {
-                car_speed += 0.224;
+                car_speed += 0.25;
               } else if (ref_vel < car_speed) {
-                car_speed -= 0.224;
+                car_speed -= 0.25;
               }
               // find points on spline
-              double N = (target_dist / (0.02 * ref_vel / 2.24));
+              double N = (target_dist / (0.02 * car_speed / 2.24));
               double x_point = x_add_on + target_x / N;
               double y_point = s(x_point);
 
