@@ -279,7 +279,7 @@ int main() {
                 double check_speed = sqrt(vx * vx + vy * vy);
                 double check_car_s = sensor_fusion[i][5];
 
-                // use project points from previous points
+                // use to project points from previous points
                 check_car_s += ((double)prev_size * 0.02 * check_speed);
                 // Check for larger s values and s gap
                 if ((check_car_s > car_s) && ((check_car_s - car_s) < 30) && ((check_car_s - car_s) < minDist_s)) {
@@ -314,7 +314,7 @@ int main() {
 						double dist_s = check_car_s - car_s;
 
 						if (dist_s < 20 && dist_s > -20) {
-						lane_change_ok = false;
+						  lane_change_ok = false;
 						}
 
 					}
@@ -342,7 +342,7 @@ int main() {
 						check_car_s += ((double)prev_size * 0.02 * check_speed);
 						double dist_s = check_car_s - car_s;
 						if (dist_s < 20 && dist_s > -10) {
-						lane_change_ok = false;
+						  lane_change_ok = false;
 						}
 					}
 				}
