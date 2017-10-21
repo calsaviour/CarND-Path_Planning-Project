@@ -266,15 +266,11 @@ int main() {
 						// lowering reference velocity and avoid front collisions
 						//ref_vel = 29.5; // in mph
 						too_close = true;
+						if(lane > 0) {
+							lane = 0;
+						}
 					}
 				}
-			}
-
-
-			if(too_close){
-				ref_vel -=0.25;
-			} else if(ref_vel < 49.5) {
-				ref_vel += 0.25;
 			}
 
 			// for waypoints (x, y) evenly spaced at 30m
@@ -347,7 +343,7 @@ int main() {
           	vector<double> next_x_vals;
 			vector<double> next_y_vals;
 			
-			// Starter Code: Straight Line Path            
+			// start path with previous points            
             for (int i = 0; i < previous_path_x.size(); i++) {
               next_x_vals.push_back(previous_path_x[i]);
               next_y_vals.push_back(previous_path_y[i]);
@@ -360,6 +356,13 @@ int main() {
 
 			double x_add_on = 0;
 			for(int i = 0; i <= 50 - previous_path_x.size(); i++) {
+				// handle the accleration limits
+				if(too_close){
+					ref_vel -=0.25;
+				} else if(ref_vel < 49.5) {
+					ref_vel += 0.25;
+				}
+
 				// find points on spline
 				double N = (target_dist / (0.02 * ref_vel / 2.24));
 				double x_point = x_add_on + target_x / N;
