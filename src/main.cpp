@@ -197,20 +197,21 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
+  //start in lane 1
+  int lane = 1;
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  // Have a reference velocity to target
+  double ref_vel = 0.0; // mph
+
+  h.onMessage([&ref_vel, &map_waypoints_x,&map_waypoints_y,&map_waypoints_s,
+				&map_waypoints_dx,&map_waypoints_dy, &lane]
+				(uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     auto sdata = string(data).substr(0, length);
 	cout << sdata << endl;
-
-	//start in lane 1
-	int lane = 1;
-	
-	// Have a reference velocity to target
-	double ref_vel = 49.5; // mph
 
     if (length && length > 2 && data[0] == '4' && data[1] == '2') {
 
@@ -240,7 +241,8 @@ int main() {
           	double end_path_d = j[1]["end_path_d"];
 			
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
-			auto sensor_fusion = j[1]["sensor_fusion"];
+			//auto sensor_fusion = j[1]["sensor_fusion"];
+			vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 			
 			int prev_size = previous_path_x.size();
 			if(prev_size > 0) {
@@ -262,10 +264,17 @@ int main() {
 					check_car_s += ((double)prev_size * 0.02 * check_speed);
 					if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
 						// lowering reference velocity and avoid front collisions
-						ref_vel = 29.5; // in mph
-						// too_close = true;
+						//ref_vel = 29.5; // in mph
+						too_close = true;
 					}
 				}
+			}
+
+
+			if(too_close){
+				ref_vel -=0.25;
+			} else if(ref_vel < 49.5) {
+				ref_vel += 0.25;
 			}
 
 			// for waypoints (x, y) evenly spaced at 30m
