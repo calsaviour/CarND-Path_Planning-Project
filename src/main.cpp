@@ -238,12 +238,36 @@ int main() {
           	// Previous path's end s and d values 
           	double end_path_s = j[1]["end_path_s"];
           	double end_path_d = j[1]["end_path_d"];
-
+			
           	// Sensor Fusion Data, a list of all other cars on the same side of the road.
 			auto sensor_fusion = j[1]["sensor_fusion"];
-			  
-			int prev_size = previous_path_x.size();
 			
+			int prev_size = previous_path_x.size();
+			if(prev_size > 0) {
+				car_s = end_path_s;
+			}
+
+			bool too_close = false;
+
+			// find ref_vel to use
+			for(int i = 0; i < sensor_fusion.size(); i++) {
+				float d = sensor_fusion[i][6];
+				if(d < (2+4*lane+2) && d > (2+4*lane-2)) {
+					double vx = sensor_fusion[i][3];
+					double vy = sensor_fusion[i][4];
+					double check_speed = sqrt(vx * vx + vy * vy);
+					double check_car_s = sensor_fusion[i][5];
+
+					// use for project points from previous points
+					check_car_s += ((double)prev_size * 0.02 * check_speed);
+					if ((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
+						// lowering reference velocity and avoid front collisions
+						ref_vel = 29.5; // in mph
+						// too_close = true;
+					}
+				}
+			}
+
 			// for waypoints (x, y) evenly spaced at 30m
 			vector<double> ptsx;
 			vector<double> ptsy;
